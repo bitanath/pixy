@@ -13,11 +13,6 @@ func generateConversation(_: UnsafePointer<CChar>, _: UnsafePointer<CChar>) -> U
 func freeString(_: UnsafeMutablePointer<CChar>)
 
 struct CanvasDrawView: View {
-    struct OutputItem: Identifiable {
-        let id = UUID()
-        let text: String
-    }
-    
     @State private var committedSegments: [Segment] = []
     @State private var currentStroke: [CGPoint] = []
     @State private var previewSegments: [Segment] = []
@@ -25,8 +20,8 @@ struct CanvasDrawView: View {
     @State private var isActive = false
 
     @State private var showInstruction = true
-    @State private var showOutput = false
-    @State private var outputText:OutputItem?
+    @State private var showChat = false
+    @State private var chatPrompt = ""
     
 
     var body: some View {
@@ -64,13 +59,16 @@ struct CanvasDrawView: View {
                                         .font(.caption)
                                 }
                                 Spacer()
-                                Button(role: .confirm, action: generateOutput) {
+                                Button(role: .confirm, action: {
+                                    chatPrompt = "What is the capital of Australia?"
+                                    showChat = true
+                                }) {
                                     Image(systemName: "bubble.left.circle.fill")
                                         .font(.caption)
                                 }
                             }
                         }
-                        Button(role: .cancel, action: clearCanvas) {
+                        Button(role: .cancel, action: { showChat = true }) {
                             Image(systemName: "keyboard")
                                 .font(.caption)
                         }
@@ -80,7 +78,7 @@ struct CanvasDrawView: View {
                     
                 }
                 .gesture(
-                    DragGesture(minimumDistance: 0)
+                    DragGesture(minimumDistance: 1)
                         .onChanged { value in
                             handleDragChanged(value)
                         }
@@ -91,13 +89,8 @@ struct CanvasDrawView: View {
             }
             .buttonStyle(.borderless)
             .padding(.bottom, 4)
-            .sheet(item: $outputText) { outs in
-                ScrollView {
-                    Text("MakiChu")
-                        .padding()
-                    Text(outs.text)
-                        .padding()
-                }
+            .sheet(isPresented: $showChat) {
+                ChattingView(prompt: $chatPrompt)
             }
         
     }
@@ -129,20 +122,6 @@ struct CanvasDrawView: View {
             currentStroke = []
         } else if !committedSegments.isEmpty {
             committedSegments.removeLast()
-        }
-    }
-
-    private func generateOutput() {
-        DispatchQueue.global(qos: .userInteractive).async {
-            guard let result = generateConversation("What is the capital of Australia?", "You are a helpful assistant. You reply in as few words as possible.") else {return}
-            let text = String(cString: result)
-            freeString(result)
-            print("Got text",text)
-            DispatchQueue.main.async {
-                print("Now setting text in async manner",text)
-                outputText = OutputItem(text: text)
-                showOutput = true
-            }
         }
     }
 

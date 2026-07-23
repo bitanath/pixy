@@ -53,33 +53,3 @@ python upload_to_hf.py --adapter lora_qwen --repo your-username/blocks-lora-qwen
 python upload_to_hf.py --adapter lora_llama --repo your-username/blocks-lora-llama
 ```
 
-### 4. Deploy to Cloudflare
-
-```bash
-# Qwen
-npx wrangler ai finetune create @cf/qwen/qwen3-30b-a3b-fp8 blocks-lora-qwen lora_qwen/
-
-# Llama
-npx wrangler ai finetune create @cf/meta/llama-3.1-8b-instruct-fast blocks-lora-llama lora_llama/
-```
-
-### 5. Use in your Worker
-
-```typescript
-const response = await env.AI.run(modelName, {
-  messages: chatMessages,
-  tools: toolDefs,
-  lora: "blocks-lora-qwen",  // your finetune name or ID
-  stream: true,
-});
-```
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `prepare_dataset.py` | Generates training data from embedded SYSTEM.md + BLOCKS.markdown |
-| `dataset.jsonl` | ~350 training examples in chat format |
-| `train_qwen.py` | QLoRA training for Qwen3-30B-A3B |
-| `train_llama.py` | QLoRA training for Llama-3.1-8B-Instruct |
-| `upload_to_hf.py` | Upload adapter to HuggingFace Hub |
