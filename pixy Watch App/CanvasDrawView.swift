@@ -7,11 +7,6 @@
 
 import SwiftUI
 
-@_extern(c, "generate_conversation")
-func generateConversation(_: UnsafePointer<CChar>, _: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>?
-@_extern(c, "free_string")
-func freeString(_: UnsafeMutablePointer<CChar>)
-
 struct CanvasDrawView: View {
     @State private var committedSegments: [Segment] = []
     @State private var currentStroke: [CGPoint] = []
@@ -22,6 +17,9 @@ struct CanvasDrawView: View {
     @State private var showInstruction = true
     @State private var showChat = false
     @State private var chatPrompt = ""
+    @State private var showExplanation = false
+    @State private var chatMessages: [(String, String)] = []
+    @State private var autoSendChat = false
     
 
     var body: some View {
@@ -54,21 +52,25 @@ struct CanvasDrawView: View {
                             
                         }.overlay{
                             HStack{
-                                Button(role: .cancel, action: undoLastStroke) {
-                                    Image(systemName: "arrow.counterclockwise.circle.fill")
+                                Button(role: .cancel, action: { showExplanation = true }) {
+                                    Image(systemName: "checkmark.circle.badge.questionmark")
                                         .font(.caption)
                                 }
                                 Spacer()
                                 Button(role: .confirm, action: {
-                                    chatPrompt = "What is the capital of Australia?"
+                                    chatPrompt = classifyDrawing() ?? "Hello"
+                                    autoSendChat = classifyDrawing() != nil ? true : false
                                     showChat = true
+                                    
                                 }) {
                                     Image(systemName: "bubble.left.circle.fill")
                                         .font(.caption)
                                 }
                             }
                         }
-                        Button(role: .cancel, action: { showChat = true }) {
+                        Button(role: .cancel, action: {
+                            showChat = true
+                        }) {
                             Image(systemName: "keyboard")
                                 .font(.caption)
                         }
@@ -90,7 +92,10 @@ struct CanvasDrawView: View {
             .buttonStyle(.borderless)
             .padding(.bottom, 4)
             .sheet(isPresented: $showChat) {
-                ChattingView(prompt: $chatPrompt)
+                ChattingView(prompt: $chatPrompt, messages: $chatMessages, autoSend: $autoSendChat)
+            }
+            .sheet(isPresented: $showExplanation) {
+                ExplanationView(isPresented: $showExplanation)
             }
         
     }
@@ -186,6 +191,49 @@ struct CanvasDrawView: View {
 
         let smooth = smoothed(currentStroke, window: 3)
         previewSegments = buildSegments(from: smooth)
+    }
+
+    private func classifyDrawing() -> String? {
+        guard !committedSegments.isEmpty else { return nil }
+        let w = 56, h = 56
+        let colorSpace = CGColorSpaceCreateDeviceGray()
+        let ctx = CGContext(
+            data: nil, width: w, height: h,
+            bitsPerComponent: 8, bytesPerRow: w,
+            space: colorSpace, bitmapInfo: CGImageAlphaInfo.none.rawValue
+        )!
+        ctx.setFillColor(gray: 0, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.saveGState()
+        ctx.translateBy(x: 0, y: CGFloat(h))
+        ctx.scaleBy(x: 1, y: -1)
+        let scale = CGFloat(h) / 240.0
+        let padX = (CGFloat(w) - 200 * scale) / 2
+        ctx.translateBy(x: padX, y: 0)
+        ctx.scaleBy(x: scale, y: scale)
+        
+        ctx.setStrokeColor(gray: 1, alpha: 1)
+        ctx.setLineCap(.round)
+        for seg in committedSegments {
+            let mid2 = CGPoint(x: (seg.a.x + seg.b.x) * 0.5,
+                               y: (seg.a.y + seg.b.y) * 0.5)
+            let mid1 = CGPoint(x: (seg.b.x + seg.c.x) * 0.5,
+                               y: (seg.b.y + seg.c.y) * 0.5)
+            ctx.setLineWidth(seg.width)
+            ctx.move(to: mid2)
+            ctx.addQuadCurve(to: mid1, control: seg.b)
+            ctx.strokePath()
+        }
+        ctx.restoreGState()
+        
+        guard let pixels = ctx.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        var logits: [Float] = Array(repeating: 0, count: 9)
+        guard let cgImage = ctx.makeImage() else { return nil}
+        let uiImage = UIImage(cgImage: cgImage)
+        print("Got image",uiImage)
+        convnet_infer(pixels, &logits)
+        guard let maxIdx = logits.firstIndex(of: logits.max()!) else { return nil }
+        return convnetClasses[maxIdx].name
     }
 
     private func handleDragEnded(_ value: DragGesture.Value) {

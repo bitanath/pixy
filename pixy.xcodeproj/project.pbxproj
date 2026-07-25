@@ -330,6 +330,8 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
 					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
+					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
+					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "-enable-experimental-feature Extern";
@@ -367,6 +369,8 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
+					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
+					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
 					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
 					"$(PROJECT_DIR)/pixy\\ Watch\\ App",
 				);

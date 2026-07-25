@@ -137,7 +137,7 @@ pub const Config = struct {
     seq_len: usize = 0,
     rope_theta: f64 = 0,
     head_dim: usize = 0,
-    rms_norm_eps: f64 = 0,
+    rms_norm_eps: f32 = 0,
     ssm_d_conv: usize = 0,
     ssm_d_inner: usize = 0,
     ssm_d_state: usize = 0,
@@ -225,7 +225,7 @@ pub const RunState = struct {
     kv_mul: usize = 0,
     kv_cache_layer_size: usize = 0,
     kv_capacity: usize = 0,
-    attn_scale: f64 = 0,
+    attn_scale: f32 = 0,
     dim: usize = 0,
     n_heads: usize = 0,
     n_kv_heads: usize = 0,
@@ -233,9 +233,9 @@ pub const RunState = struct {
     seq_len: usize = 0,
     hidden_dim: usize = 0,
     vocab_size: usize = 0,
-    rms_norm_eps: f64 = 0,
-    inv_dim: f64 = 0,
-    inv_head_size: f64 = 0,
+    rms_norm_eps: f32 = 0,
+    inv_dim: f32 = 0,
+    inv_head_size: f32 = 0,
 
     top_k_indices: ?[]i32 = null,
     top_k_values: ?[]f32 = null,
@@ -268,6 +268,11 @@ pub const RunState = struct {
 pub const ChatMessage = struct {
     role: []const u8 = "",
     content: []const u8 = "",
+};
+
+pub const ChatMessageC = extern struct {
+    role: [*:0]const u8,
+    content: [*:0]const u8,
 };
 
 pub const FnRender = *const fn (token: []const u8) void;

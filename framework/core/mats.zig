@@ -181,21 +181,21 @@ pub fn matmulByteLocal(out: []f32, x: []const f32, local_u8: []const u8, local_i
             const q1 = bo1 + 2;
             const q2 = bo2 + 2;
             const q3 = bo3 + 2;
-            var dot0_vec: @Vector(4, f32) = @splat(0.0);
-            var dot1_vec: @Vector(4, f32) = @splat(0.0);
-            var dot2_vec: @Vector(4, f32) = @splat(0.0);
-            var dot3_vec: @Vector(4, f32) = @splat(0.0);
-            inline for (0..8) |batch| {
-                const j = batch * 4;
-                const xv: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x[xb + j])).*;
-                const w0: @Vector(4, f32) = @floatFromInt(@as(@Vector(4, i32), @intCast(@as(@Vector(4, i8), local_i8[q0 + j ..][0..4].*))));
-                const w1: @Vector(4, f32) = @floatFromInt(@as(@Vector(4, i32), @intCast(@as(@Vector(4, i8), local_i8[q1 + j ..][0..4].*))));
-                const w2: @Vector(4, f32) = @floatFromInt(@as(@Vector(4, i32), @intCast(@as(@Vector(4, i8), local_i8[q2 + j ..][0..4].*))));
-                const w3: @Vector(4, f32) = @floatFromInt(@as(@Vector(4, i32), @intCast(@as(@Vector(4, i8), local_i8[q3 + j ..][0..4].*))));
-                dot0_vec = @mulAdd(@Vector(4, f32), xv, w0, dot0_vec);
-                dot1_vec = @mulAdd(@Vector(4, f32), xv, w1, dot1_vec);
-                dot2_vec = @mulAdd(@Vector(4, f32), xv, w2, dot2_vec);
-                dot3_vec = @mulAdd(@Vector(4, f32), xv, w3, dot3_vec);
+            var dot0_vec: @Vector(8, f32) = @splat(0.0);
+            var dot1_vec: @Vector(8, f32) = @splat(0.0);
+            var dot2_vec: @Vector(8, f32) = @splat(0.0);
+            var dot3_vec: @Vector(8, f32) = @splat(0.0);
+            inline for (0..4) |batch| {
+                const j = batch * 8;
+                const xv: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x[xb + j])).*;
+                const w0: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q0 + j ..][0..8].*))));
+                const w1: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q1 + j ..][0..8].*))));
+                const w2: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q2 + j ..][0..8].*))));
+                const w3: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q3 + j ..][0..8].*))));
+                dot0_vec = @mulAdd(@Vector(8, f32), xv, w0, dot0_vec);
+                dot1_vec = @mulAdd(@Vector(8, f32), xv, w1, dot1_vec);
+                dot2_vec = @mulAdd(@Vector(8, f32), xv, w2, dot2_vec);
+                dot3_vec = @mulAdd(@Vector(8, f32), xv, w3, dot3_vec);
             }
             sum0 += d0 * @reduce(.Add, dot0_vec);
             sum1 += d1 * @reduce(.Add, dot1_vec);
@@ -220,7 +220,7 @@ pub fn matmulKQuantLocal(ctx: *c.Context, out: []f32, x: []const f32, local_u8: 
     const off1 = cols;
     const off2 = cols + cols;
     const off3 = off2 + cols;
-    const cols4 = cols & ~@as(usize, 3);
+    const cols8 = cols & ~@as(usize, 7);
 
     for (0..rows4 / 4) |block| {
         const i = block * 4;
@@ -229,17 +229,17 @@ pub fn matmulKQuantLocal(ctx: *c.Context, out: []f32, x: []const f32, local_u8: 
         deq_func(ctx, local_u8, bo + row_size, deq_buf, off1, cols, local_i8);
         deq_func(ctx, local_u8, bo + row_size + row_size, deq_buf, off2, cols, local_i8);
         deq_func(ctx, local_u8, bo + row_size + row_size + row_size, deq_buf, off3, cols, local_i8);
-        var s0_vec: @Vector(4, f32) = @splat(0.0);
-        var s1_vec: @Vector(4, f32) = @splat(0.0);
-        var s2_vec: @Vector(4, f32) = @splat(0.0);
-        var s3_vec: @Vector(4, f32) = @splat(0.0);
+        var s0_vec: @Vector(8, f32) = @splat(0.0);
+        var s1_vec: @Vector(8, f32) = @splat(0.0);
+        var s2_vec: @Vector(8, f32) = @splat(0.0);
+        var s3_vec: @Vector(8, f32) = @splat(0.0);
         var j: usize = 0;
-        while (j < cols4) : (j += 4) {
-            const in_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x[j])).*;
-            s0_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
-            s1_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
-            s2_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
-            s3_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
+        while (j < cols8) : (j += 8) {
+            const in_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x[j])).*;
+            s0_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
+            s1_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
+            s2_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
+            s3_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
         }
         out[i] = @reduce(.Add, s0_vec);
         out[i + 1] = @reduce(.Add, s1_vec);
@@ -248,10 +248,10 @@ pub fn matmulKQuantLocal(ctx: *c.Context, out: []f32, x: []const f32, local_u8: 
     }
     for (rows4..rows) |i| {
         deq_func(ctx, local_u8, i * row_size, deq_buf, 0, cols, local_i8);
-        var s_vec: @Vector(4, f32) = @splat(0.0);
+        var s_vec: @Vector(8, f32) = @splat(0.0);
         var j: usize = 0;
-        while (j < cols4) : (j += 4) {
-            s_vec = @mulAdd(@Vector(4, f32), @as(*const [4]f32, @ptrCast(&x[j])).*, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s_vec);
+        while (j < cols8) : (j += 8) {
+            s_vec = @mulAdd(@Vector(8, f32), @as(*const [8]f32, @ptrCast(&x[j])).*, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s_vec);
         }
         out[i] = @reduce(.Add, s_vec);
     }
@@ -263,7 +263,7 @@ pub fn matmulKQuantLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const 
     const off1 = cols;
     const off2 = cols + cols;
     const off3 = off2 + cols;
-    const cols4 = cols & ~@as(usize, 3);
+    const cols8 = cols & ~@as(usize, 7);
     const batch_trips = batch_size - (batch_size % 3);
 
     for (0..rows4 / 4) |block| {
@@ -279,35 +279,35 @@ pub fn matmulKQuantLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const 
             const x_a = xs[bt];
             const x_b = xs[bt + 1];
             const x_c = xs[bt + 2];
-            var s0_vec: @Vector(4, f32) = @splat(0.0);
-            var s1_vec: @Vector(4, f32) = @splat(0.0);
-            var s2_vec: @Vector(4, f32) = @splat(0.0);
-            var s3_vec: @Vector(4, f32) = @splat(0.0);
-            var t0_vec: @Vector(4, f32) = @splat(0.0);
-            var t1_vec: @Vector(4, f32) = @splat(0.0);
-            var t2_vec: @Vector(4, f32) = @splat(0.0);
-            var t3_vec: @Vector(4, f32) = @splat(0.0);
-            var v0_vec: @Vector(4, f32) = @splat(0.0);
-            var v1_vec: @Vector(4, f32) = @splat(0.0);
-            var v2_vec: @Vector(4, f32) = @splat(0.0);
-            var v3_vec: @Vector(4, f32) = @splat(0.0);
+            var s0_vec: @Vector(8, f32) = @splat(0.0);
+            var s1_vec: @Vector(8, f32) = @splat(0.0);
+            var s2_vec: @Vector(8, f32) = @splat(0.0);
+            var s3_vec: @Vector(8, f32) = @splat(0.0);
+            var t0_vec: @Vector(8, f32) = @splat(0.0);
+            var t1_vec: @Vector(8, f32) = @splat(0.0);
+            var t2_vec: @Vector(8, f32) = @splat(0.0);
+            var t3_vec: @Vector(8, f32) = @splat(0.0);
+            var v0_vec: @Vector(8, f32) = @splat(0.0);
+            var v1_vec: @Vector(8, f32) = @splat(0.0);
+            var v2_vec: @Vector(8, f32) = @splat(0.0);
+            var v3_vec: @Vector(8, f32) = @splat(0.0);
             var j: usize = 0;
-            while (j < cols4) : (j += 4) {
-                const in_a_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_a[j])).*;
-                const in_b_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_b[j])).*;
-                const in_c_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_c[j])).*;
-                s0_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
-                t0_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, t0_vec);
-                v0_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, v0_vec);
-                s1_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
-                t1_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, t1_vec);
-                v1_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, v1_vec);
-                s2_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
-                t2_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, t2_vec);
-                v2_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, v2_vec);
-                s3_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
-                t3_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, t3_vec);
-                v3_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, v3_vec);
+            while (j < cols8) : (j += 8) {
+                const in_a_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_a[j])).*;
+                const in_b_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_b[j])).*;
+                const in_c_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_c[j])).*;
+                s0_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
+                t0_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, t0_vec);
+                v0_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, v0_vec);
+                s1_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
+                t1_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, t1_vec);
+                v1_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, v1_vec);
+                s2_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
+                t2_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, t2_vec);
+                v2_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, v2_vec);
+                s3_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
+                t3_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, t3_vec);
+                v3_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, v3_vec);
             }
             outs[bt][i] = @reduce(.Add, s0_vec);
             outs[bt][i + 1] = @reduce(.Add, s1_vec);
@@ -324,17 +324,17 @@ pub fn matmulKQuantLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const 
         }
         for (batch_trips..batch_size) |batch| {
             const x_arr = xs[batch];
-            var s0_vec: @Vector(4, f32) = @splat(0.0);
-            var s1_vec: @Vector(4, f32) = @splat(0.0);
-            var s2_vec: @Vector(4, f32) = @splat(0.0);
-            var s3_vec: @Vector(4, f32) = @splat(0.0);
+            var s0_vec: @Vector(8, f32) = @splat(0.0);
+            var s1_vec: @Vector(8, f32) = @splat(0.0);
+            var s2_vec: @Vector(8, f32) = @splat(0.0);
+            var s3_vec: @Vector(8, f32) = @splat(0.0);
             var j: usize = 0;
-            while (j < cols4) : (j += 4) {
-                const in_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_arr[j])).*;
-                s0_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
-                s1_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
-                s2_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
-                s3_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
+            while (j < cols8) : (j += 8) {
+                const in_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_arr[j])).*;
+                s0_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
+                s1_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
+                s2_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
+                s3_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
             }
             outs[batch][i] = @reduce(.Add, s0_vec);
             outs[batch][i + 1] = @reduce(.Add, s1_vec);
@@ -349,15 +349,15 @@ pub fn matmulKQuantLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const 
             const x_a = xs[bt];
             const x_b = xs[bt + 1];
             const x_c = xs[bt + 2];
-            var s_vec: @Vector(4, f32) = @splat(0.0);
-            var t_vec: @Vector(4, f32) = @splat(0.0);
-            var u_vec: @Vector(4, f32) = @splat(0.0);
+            var s_vec: @Vector(8, f32) = @splat(0.0);
+            var t_vec: @Vector(8, f32) = @splat(0.0);
+            var u_vec: @Vector(8, f32) = @splat(0.0);
             var j: usize = 0;
-            while (j < cols4) : (j += 4) {
-                const w_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&deq_buf[j])).*;
-                s_vec = @mulAdd(@Vector(4, f32), @as(*const [4]f32, @ptrCast(&x_a[j])).*, w_v, s_vec);
-                t_vec = @mulAdd(@Vector(4, f32), @as(*const [4]f32, @ptrCast(&x_b[j])).*, w_v, t_vec);
-                u_vec = @mulAdd(@Vector(4, f32), @as(*const [4]f32, @ptrCast(&x_c[j])).*, w_v, u_vec);
+            while (j < cols8) : (j += 8) {
+                const w_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&deq_buf[j])).*;
+                s_vec = @mulAdd(@Vector(8, f32), @as(*const [8]f32, @ptrCast(&x_a[j])).*, w_v, s_vec);
+                t_vec = @mulAdd(@Vector(8, f32), @as(*const [8]f32, @ptrCast(&x_b[j])).*, w_v, t_vec);
+                u_vec = @mulAdd(@Vector(8, f32), @as(*const [8]f32, @ptrCast(&x_c[j])).*, w_v, u_vec);
             }
             outs[bt][i] = @reduce(.Add, s_vec);
             outs[bt + 1][i] = @reduce(.Add, t_vec);
@@ -365,10 +365,10 @@ pub fn matmulKQuantLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const 
         }
         for (batch_trips..batch_size) |batch| {
             const x_arr = xs[batch];
-            var s_vec: @Vector(4, f32) = @splat(0.0);
+            var s_vec: @Vector(8, f32) = @splat(0.0);
             var j: usize = 0;
-            while (j < cols4) : (j += 4) {
-                s_vec = @mulAdd(@Vector(4, f32), @as(*const [4]f32, @ptrCast(&x_arr[j])).*, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s_vec);
+            while (j < cols8) : (j += 8) {
+                s_vec = @mulAdd(@Vector(8, f32), @as(*const [8]f32, @ptrCast(&x_arr[j])).*, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s_vec);
             }
             outs[batch][i] = @reduce(.Add, s_vec);
         }
@@ -382,7 +382,7 @@ pub fn matmulByteLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const []
     const off1 = cols;
     const off2 = cols + cols;
     const off3 = off2 + cols;
-    const cols4 = cols & ~@as(usize, 3);
+    const cols8 = cols & ~@as(usize, 7);
     const batch_trips = batch_size - (batch_size % 3);
 
     for (0..rows4 / 4) |block| {
@@ -395,11 +395,11 @@ pub fn matmulByteLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const []
             for (0..nb) |_| {
                 const d: f32 = fp16ToFp32(local_u8[bk] | (@as(u16, local_u8[bk + 1]) << 8));
                 const qo = bk + 2;
-                const dv: @Vector(4, f32) = @splat(d);
-                inline for (0..8) |batch| {
-                    const base = batch * 4;
-                    const fv: @Vector(4, f32) = @floatFromInt(@as(@Vector(4, i32), @intCast(@as(@Vector(4, i8), local_i8[qo + base ..][0..4].*))));
-                    @as(*[4]f32, @ptrCast(&deq_buf[idx + base])).* = fv * dv;
+                const dv: @Vector(8, f32) = @splat(d);
+                inline for (0..4) |batch| {
+                    const base = batch * 8;
+                    const fv: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[qo + base ..][0..8].*))));
+                    @as(*[8]f32, @ptrCast(&deq_buf[idx + base])).* = fv * dv;
                 }
                 bk += 34;
                 idx += 32;
@@ -411,35 +411,35 @@ pub fn matmulByteLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const []
             const x_a = xs[bt];
             const x_b = xs[bt + 1];
             const x_c = xs[bt + 2];
-            var s0_vec: @Vector(4, f32) = @splat(0.0);
-            var s1_vec: @Vector(4, f32) = @splat(0.0);
-            var s2_vec: @Vector(4, f32) = @splat(0.0);
-            var s3_vec: @Vector(4, f32) = @splat(0.0);
-            var t0_vec: @Vector(4, f32) = @splat(0.0);
-            var t1_vec: @Vector(4, f32) = @splat(0.0);
-            var t2_vec: @Vector(4, f32) = @splat(0.0);
-            var t3_vec: @Vector(4, f32) = @splat(0.0);
-            var v0_vec: @Vector(4, f32) = @splat(0.0);
-            var v1_vec: @Vector(4, f32) = @splat(0.0);
-            var v2_vec: @Vector(4, f32) = @splat(0.0);
-            var v3_vec: @Vector(4, f32) = @splat(0.0);
+            var s0_vec: @Vector(8, f32) = @splat(0.0);
+            var s1_vec: @Vector(8, f32) = @splat(0.0);
+            var s2_vec: @Vector(8, f32) = @splat(0.0);
+            var s3_vec: @Vector(8, f32) = @splat(0.0);
+            var t0_vec: @Vector(8, f32) = @splat(0.0);
+            var t1_vec: @Vector(8, f32) = @splat(0.0);
+            var t2_vec: @Vector(8, f32) = @splat(0.0);
+            var t3_vec: @Vector(8, f32) = @splat(0.0);
+            var v0_vec: @Vector(8, f32) = @splat(0.0);
+            var v1_vec: @Vector(8, f32) = @splat(0.0);
+            var v2_vec: @Vector(8, f32) = @splat(0.0);
+            var v3_vec: @Vector(8, f32) = @splat(0.0);
             var j: usize = 0;
-            while (j < cols4) : (j += 4) {
-                const in_a_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_a[j])).*;
-                const in_b_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_b[j])).*;
-                const in_c_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_c[j])).*;
-                s0_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
-                t0_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, t0_vec);
-                v0_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, v0_vec);
-                s1_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
-                t1_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, t1_vec);
-                v1_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, v1_vec);
-                s2_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
-                t2_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, t2_vec);
-                v2_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, v2_vec);
-                s3_vec = @mulAdd(@Vector(4, f32), in_a_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
-                t3_vec = @mulAdd(@Vector(4, f32), in_b_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, t3_vec);
-                v3_vec = @mulAdd(@Vector(4, f32), in_c_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, v3_vec);
+            while (j < cols8) : (j += 8) {
+                const in_a_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_a[j])).*;
+                const in_b_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_b[j])).*;
+                const in_c_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_c[j])).*;
+                s0_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
+                t0_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, t0_vec);
+                v0_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, v0_vec);
+                s1_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
+                t1_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, t1_vec);
+                v1_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, v1_vec);
+                s2_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
+                t2_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, t2_vec);
+                v2_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, v2_vec);
+                s3_vec = @mulAdd(@Vector(8, f32), in_a_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
+                t3_vec = @mulAdd(@Vector(8, f32), in_b_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, t3_vec);
+                v3_vec = @mulAdd(@Vector(8, f32), in_c_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, v3_vec);
             }
             outs[bt][i] = @reduce(.Add, s0_vec);
             outs[bt][i + 1] = @reduce(.Add, s1_vec);
@@ -456,17 +456,17 @@ pub fn matmulByteLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const []
         }
         for (batch_trips..batch_size) |batch| {
             const x_arr = xs[batch];
-            var s0_vec: @Vector(4, f32) = @splat(0.0);
-            var s1_vec: @Vector(4, f32) = @splat(0.0);
-            var s2_vec: @Vector(4, f32) = @splat(0.0);
-            var s3_vec: @Vector(4, f32) = @splat(0.0);
+            var s0_vec: @Vector(8, f32) = @splat(0.0);
+            var s1_vec: @Vector(8, f32) = @splat(0.0);
+            var s2_vec: @Vector(8, f32) = @splat(0.0);
+            var s3_vec: @Vector(8, f32) = @splat(0.0);
             var j: usize = 0;
-            while (j < cols4) : (j += 4) {
-                const in_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&x_arr[j])).*;
-                s0_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
-                s1_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
-                s2_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
-                s3_vec = @mulAdd(@Vector(4, f32), in_v, @as(*const [4]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
+            while (j < cols8) : (j += 8) {
+                const in_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x_arr[j])).*;
+                s0_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[j])).*, s0_vec);
+                s1_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off1 + j])).*, s1_vec);
+                s2_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off2 + j])).*, s2_vec);
+                s3_vec = @mulAdd(@Vector(8, f32), in_v, @as(*const [8]f32, @ptrCast(&deq_buf[off3 + j])).*, s3_vec);
             }
             outs[batch][i] = @reduce(.Add, s0_vec);
             outs[batch][i + 1] = @reduce(.Add, s1_vec);

@@ -370,23 +370,23 @@ fn transformerLlama(ctx: *c.Context, token: i32, pos: usize, compute_logits: boo
         for (0..s.n_heads) |_h| {
             const q_base = _h * head_size;
             for (0..half) |i| {
-                const fcr: f64 = @floatCast(rope_cos[i]);
-                const fci: f64 = @floatCast(rope_sin[i]);
-                const v0: f64 = @floatCast(q_arr[q_base + i]);
-                const v1: f64 = @floatCast(q_arr[q_base + i + half]);
-                q_arr[q_base + i] = @floatCast((v0 * fcr - v1 * fci) * attn_scale);
-                q_arr[q_base + i + half] = @floatCast((v0 * fci + v1 * fcr) * attn_scale);
+                const fcr: f32 = rope_cos[i];
+                const fci: f32 = rope_sin[i];
+                const v0: f32 = q_arr[q_base + i];
+                const v1: f32 = q_arr[q_base + i + half];
+                q_arr[q_base + i] = (v0 * fcr - v1 * fci) * attn_scale;
+                q_arr[q_base + i + half] = (v0 * fci + v1 * fcr) * attn_scale;
             }
         }
         for (0..n_kv_heads) |_h| {
             const k_base = _h * head_size;
             for (0..half) |i| {
-                const fcr: f64 = @floatCast(rope_cos[i]);
-                const fci: f64 = @floatCast(rope_sin[i]);
-                const v0: f64 = @floatCast(k_arr[k_base + i]);
-                const v1: f64 = @floatCast(k_arr[k_base + i + half]);
-                k_arr[k_base + i] = @floatCast(v0 * fcr - v1 * fci);
-                k_arr[k_base + i + half] = @floatCast(v0 * fci + v1 * fcr);
+                const fcr: f32 = rope_cos[i];
+                const fci: f32 = rope_sin[i];
+                const v0: f32 = k_arr[k_base + i];
+                const v1: f32 = k_arr[k_base + i + half];
+                k_arr[k_base + i] = v0 * fcr - v1 * fci;
+                k_arr[k_base + i + half] = v0 * fci + v1 * fcr;
             }
         }
 
@@ -407,35 +407,35 @@ fn transformerLlama(ctx: *c.Context, token: i32, pos: usize, compute_logits: boo
                 const k_off = k_base + t * head_bytes_q8;
                 for (0..kv_mul) |mh| {
                     const h = kv_h * kv_mul + mh;
-                    s_att[h * seq_len + t] = @floatCast(dm.dotByteByteCache(q_q8, q_q8i8, h * head_bytes_q8, key_cache, key_cache_int8, k_off, head_size));
+                    s_att[h * seq_len + t] = dm.dotByteByteCache(q_q8, q_q8i8, h * head_bytes_q8, key_cache, key_cache_int8, k_off, head_size);
                 }
             }
 
             for (0..kv_mul) |mh| {
                 const h = kv_h * kv_mul + mh;
-                const att_offset = h * seq_len;
-                const softmax_end = att_offset + pos;
+                    const att_offset = h * seq_len;
+                    const softmax_end = att_offset + pos;
 
-                var max_val: f64 = @floatCast(s_att[att_offset]);
-                var ai = att_offset + 1;
-                while (ai <= softmax_end) : (ai += 1) {
-                    if (s_att[ai] > max_val) max_val = @floatCast(s_att[ai]);
-                }
-                var exp_sum: f64 = 0.0;
-                ai = att_offset;
-                while (ai <= softmax_end) : (ai += 1) {
-                    const e = @exp(@as(f64, @floatCast(s_att[ai])) - max_val);
-                    s_att[ai] = @floatCast(e);
-                    exp_sum += e;
-                }
-                const inv_sum: f64 = 1.0 / exp_sum;
-                ai = att_offset;
-                while (ai <= softmax_end) : (ai += 1) s_att[ai] = @floatCast(@as(f64, @floatCast(s_att[ai])) * inv_sum);
+                    var max_val: f32 = s_att[att_offset];
+                    var ai = att_offset + 1;
+                    while (ai <= softmax_end) : (ai += 1) {
+                        if (s_att[ai] > max_val) max_val = s_att[ai];
+                    }
+                    var exp_sum: f32 = 0.0;
+                    ai = att_offset;
+                    while (ai <= softmax_end) : (ai += 1) {
+                        const e = @exp(s_att[ai] - max_val);
+                        s_att[ai] = e;
+                        exp_sum += e;
+                    }
+                    const inv_sum: f32 = 1.0 / exp_sum;
+                    ai = att_offset;
+                    while (ai <= softmax_end) : (ai += 1) s_att[ai] = s_att[ai] * inv_sum;
 
-                const xb_offset = h * head_size;
-                for (0..pos + 1) |t| {
-                    dm.accumByteCache(xb_arr, xb_offset, value_cache, value_cache_int8, k_base + t * head_bytes_q8, @as(f64, @floatCast(s_att[att_offset + t])), head_size);
-                }
+                    const xb_offset = h * head_size;
+                    for (0..pos + 1) |t| {
+                        dm.accumByteCache(xb_arr, xb_offset, value_cache, value_cache_int8, k_base + t * head_bytes_q8, s_att[att_offset + t], head_size);
+                    }
             }
         }
 
@@ -446,7 +446,7 @@ fn transformerLlama(ctx: *c.Context, token: i32, pos: usize, compute_logits: boo
         mamba2Layer(ctx, pos, l, xb_arr, s.hb orelse return);
 
         for (0..dim) |_i| {
-            xb2_arr[_i] = @floatCast(@as(f64, @floatCast(xb2_arr[_i])) + @as(f64, (s.hb orelse return)[_i]));
+            xb2_arr[_i] = xb2_arr[_i] + (s.hb orelse return)[_i];
         }
         op.accum(x_arr, xb2_arr, dim);
 
@@ -475,18 +475,18 @@ fn transformerLlama(ctx: *c.Context, token: i32, pos: usize, compute_logits: boo
         const hd4 = hidden_dim & ~@as(usize, 3);
         var hi: usize = 0;
         while (hi < hd4) : (hi += 4) {
-            const v0: f64 = @floatCast(hb_arr[hi]);
-            const v1: f64 = @floatCast(hb_arr[hi + 1]);
-            const v2: f64 = @floatCast(hb_arr[hi + 2]);
-            const v3: f64 = @floatCast(hb_arr[hi + 3]);
-            hb_arr[hi] = @floatCast(0.5 * v0 * (1.0 + op.fastTanh(0.5 * v0)) * @as(f64, @floatCast(hb2_arr[hi])));
-            hb_arr[hi + 1] = @floatCast(0.5 * v1 * (1.0 + op.fastTanh(0.5 * v1)) * @as(f64, @floatCast(hb2_arr[hi + 1])));
-            hb_arr[hi + 2] = @floatCast(0.5 * v2 * (1.0 + op.fastTanh(0.5 * v2)) * @as(f64, @floatCast(hb2_arr[hi + 2])));
-            hb_arr[hi + 3] = @floatCast(0.5 * v3 * (1.0 + op.fastTanh(0.5 * v3)) * @as(f64, @floatCast(hb2_arr[hi + 3])));
+            const v0: f32 = hb_arr[hi];
+            const v1: f32 = hb_arr[hi + 1];
+            const v2: f32 = hb_arr[hi + 2];
+            const v3: f32 = hb_arr[hi + 3];
+            hb_arr[hi] = 0.5 * v0 * (1.0 + op.fastTanh(0.5 * v0)) * hb2_arr[hi];
+            hb_arr[hi + 1] = 0.5 * v1 * (1.0 + op.fastTanh(0.5 * v1)) * hb2_arr[hi + 1];
+            hb_arr[hi + 2] = 0.5 * v2 * (1.0 + op.fastTanh(0.5 * v2)) * hb2_arr[hi + 2];
+            hb_arr[hi + 3] = 0.5 * v3 * (1.0 + op.fastTanh(0.5 * v3)) * hb2_arr[hi + 3];
         }
         while (hi < hidden_dim) : (hi += 1) {
-            const val: f64 = @floatCast(hb_arr[hi]);
-            hb_arr[hi] = @floatCast(0.5 * val * (1.0 + op.fastTanh(0.5 * val)) * @as(f64, @floatCast(hb2_arr[hi])));
+            const val: f32 = hb_arr[hi];
+            hb_arr[hi] = 0.5 * val * (1.0 + op.fastTanh(0.5 * val)) * hb2_arr[hi];
         }
         const w2 = lw.w2 orelse return;
         mt.matmulQuantized(ctx, xb_arr, hb_arr, w2);
@@ -605,23 +605,23 @@ fn transformerPrefillLlama(ctx: *c.Context, all_tokens: []const i32, start_pos: 
             for (0..s.n_heads) |_h| {
                 const q_base = _h * head_size;
                 for (0..half) |i| {
-                    const fcr: f64 = @floatCast(rope_cos[rope_base + i]);
-                    const fci: f64 = @floatCast(rope_sin[rope_base + i]);
-                    const v0: f64 = @floatCast(q_arr[q_base + i]);
-                    const v1: f64 = @floatCast(q_arr[q_base + i + half]);
-                    q_arr[q_base + i] = @floatCast((v0 * fcr - v1 * fci) * attn_scale);
-                    q_arr[q_base + i + half] = @floatCast((v0 * fci + v1 * fcr) * attn_scale);
+                    const fcr: f32 = rope_cos[rope_base + i];
+                    const fci: f32 = rope_sin[rope_base + i];
+                    const v0: f32 = q_arr[q_base + i];
+                    const v1: f32 = q_arr[q_base + i + half];
+                    q_arr[q_base + i] = (v0 * fcr - v1 * fci) * attn_scale;
+                    q_arr[q_base + i + half] = (v0 * fci + v1 * fcr) * attn_scale;
                 }
             }
             for (0..n_kv_heads) |_h| {
                 const k_base = _h * head_size;
                 for (0..half) |i| {
-                    const fcr: f64 = @floatCast(rope_cos[rope_base + i]);
-                    const fci: f64 = @floatCast(rope_sin[rope_base + i]);
-                    const v0: f64 = @floatCast(k_arr[k_base + i]);
-                    const v1: f64 = @floatCast(k_arr[k_base + i + half]);
-                    k_arr[k_base + i] = @floatCast(v0 * fcr - v1 * fci);
-                    k_arr[k_base + i + half] = @floatCast(v0 * fci + v1 * fcr);
+                    const fcr: f32 = rope_cos[rope_base + i];
+                    const fci: f32 = rope_sin[rope_base + i];
+                    const v0: f32 = k_arr[k_base + i];
+                    const v1: f32 = k_arr[k_base + i + half];
+                    k_arr[k_base + i] = v0 * fcr - v1 * fci;
+                    k_arr[k_base + i + half] = v0 * fci + v1 * fcr;
                 }
             }
 
@@ -640,31 +640,31 @@ fn transformerPrefillLlama(ctx: *c.Context, all_tokens: []const i32, start_pos: 
                     const k_off = k_base + t * head_bytes_q8;
                     for (0..kv_mul) |mh| {
                         const h = kv_h * kv_mul + mh;
-                        s_att[h * seq_len + t] = @floatCast(dm.dotByteByteCache(q_q8, q_q8i8, h * head_bytes_q8, key_cache, key_cache_int8, k_off, head_size));
+s_att[h * seq_len + t] = dm.dotByteByteCache(q_q8, q_q8i8, h * head_bytes_q8, key_cache, key_cache_int8, k_off, head_size);
                     }
                 }
                 for (0..kv_mul) |mh| {
                     const h = kv_h * kv_mul + mh;
                     const att_offset = h * seq_len;
                     const softmax_end = att_offset + pos;
-                    var max_val: f64 = @floatCast(s_att[att_offset]);
+                    var max_val: f32 = s_att[att_offset];
                     var ai = att_offset + 1;
                     while (ai <= softmax_end) : (ai += 1) {
-                        if (s_att[ai] > max_val) max_val = @floatCast(s_att[ai]);
+                        if (s_att[ai] > max_val) max_val = s_att[ai];
                     }
-                    var exp_sum: f64 = 0.0;
+                    var exp_sum: f32 = 0.0;
                     ai = att_offset;
                     while (ai <= softmax_end) : (ai += 1) {
-                        const e = @exp(@as(f64, @floatCast(s_att[ai])) - max_val);
-                        s_att[ai] = @floatCast(e);
+                        const e = @exp(s_att[ai] - max_val);
+                        s_att[ai] = e;
                         exp_sum += e;
                     }
-                    const inv_sum: f64 = 1.0 / exp_sum;
+                    const inv_sum: f32 = 1.0 / exp_sum;
                     ai = att_offset;
-                    while (ai <= softmax_end) : (ai += 1) s_att[ai] = @floatCast(@as(f64, @floatCast(s_att[ai])) * inv_sum);
+                    while (ai <= softmax_end) : (ai += 1) s_att[ai] = s_att[ai] * inv_sum;
                     const xb_offset = h * head_size;
                     for (0..pos + 1) |t| {
-                        dm.accumByteCache(xb_arr, xb_offset, value_cache, value_cache_int8, k_base + t * head_bytes_q8, @as(f64, @floatCast(s_att[att_offset + t])), head_size);
+                        dm.accumByteCache(xb_arr, xb_offset, value_cache, value_cache_int8, k_base + t * head_bytes_q8, s_att[att_offset + t], head_size);
                     }
                 }
             }
@@ -706,18 +706,18 @@ fn transformerPrefillLlama(ctx: *c.Context, all_tokens: []const i32, start_pos: 
             const hb2_arr = b_hb2_nn[b];
             var hi: usize = 0;
             while (hi < hd4) : (hi += 4) {
-                const v0: f64 = @floatCast(hb_arr[hi]);
-                const v1: f64 = @floatCast(hb_arr[hi + 1]);
-                const v2: f64 = @floatCast(hb_arr[hi + 2]);
-                const v3: f64 = @floatCast(hb_arr[hi + 3]);
-                hb_arr[hi] = @floatCast(0.5 * v0 * (1.0 + op.fastTanh(0.5 * v0)) * @as(f64, @floatCast(hb2_arr[hi])));
-                hb_arr[hi + 1] = @floatCast(0.5 * v1 * (1.0 + op.fastTanh(0.5 * v1)) * @as(f64, @floatCast(hb2_arr[hi + 1])));
-                hb_arr[hi + 2] = @floatCast(0.5 * v2 * (1.0 + op.fastTanh(0.5 * v2)) * @as(f64, @floatCast(hb2_arr[hi + 2])));
-                hb_arr[hi + 3] = @floatCast(0.5 * v3 * (1.0 + op.fastTanh(0.5 * v3)) * @as(f64, @floatCast(hb2_arr[hi + 3])));
+                const v0: f32 = hb_arr[hi];
+                const v1: f32 = hb_arr[hi + 1];
+                const v2: f32 = hb_arr[hi + 2];
+                const v3: f32 = hb_arr[hi + 3];
+                hb_arr[hi] = 0.5 * v0 * (1.0 + op.fastTanh(0.5 * v0)) * hb2_arr[hi];
+                hb_arr[hi + 1] = 0.5 * v1 * (1.0 + op.fastTanh(0.5 * v1)) * hb2_arr[hi + 1];
+                hb_arr[hi + 2] = 0.5 * v2 * (1.0 + op.fastTanh(0.5 * v2)) * hb2_arr[hi + 2];
+                hb_arr[hi + 3] = 0.5 * v3 * (1.0 + op.fastTanh(0.5 * v3)) * hb2_arr[hi + 3];
             }
             while (hi < hidden_dim) : (hi += 1) {
-                const val: f64 = @floatCast(hb_arr[hi]);
-                hb_arr[hi] = @floatCast(0.5 * val * (1.0 + op.fastTanh(0.5 * val)) * @as(f64, @floatCast(hb2_arr[hi])));
+                const val: f32 = hb_arr[hi];
+                hb_arr[hi] = 0.5 * val * (1.0 + op.fastTanh(0.5 * val)) * hb2_arr[hi];
             }
         }
 

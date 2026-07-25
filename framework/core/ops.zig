@@ -77,7 +77,7 @@ fn readString(rs: *ReadState, allocator: std.mem.Allocator) ![]const u8 {
     return str;
 }
 
-pub fn fastTanh(x: f64) f64 {
+pub fn fastTanh(x: f32) f32 {
     if (x < -4.0) return -1.0;
     if (x > 4.0) return 1.0;
     const x2 = x * x;
@@ -89,9 +89,9 @@ pub fn fastExpf(x: f64) f64 {
     return @exp(x);
 }
 
-pub fn rmsnorm(out: []f32, x: []const f32, w: []const f32, size: usize, inv_size: f64, eps: f64) void {
-    const inv = if (inv_size == 0) 1.0 / @as(f64, @floatFromInt(size)) else inv_size;
-    var ss: f64 = 0.0;
+pub fn rmsnorm(out: []f32, x: []const f32, w: []const f32, size: usize, inv_size: f32, eps: f32) void {
+    const inv = if (inv_size == 0) 1.0 / @as(f32, @floatFromInt(size)) else inv_size;
+    var ss: f32 = 0.0;
     const size8 = size & ~@as(usize, 7);
     var i: usize = 0;
     while (i < size8) : (i += 8) {
@@ -100,17 +100,17 @@ pub fn rmsnorm(out: []f32, x: []const f32, w: []const f32, size: usize, inv_size
         ss += @reduce(.Add, fv);
     }
     while (i < size) : (i += 1) {
-        const v: f64 = x[i];
+        const v: f32 = x[i];
         ss += v * v;
     }
     ss = 1.0 / @sqrt(ss * inv + eps);
-    const ssv: @Vector(8, f32) = @splat(@as(f32, @floatCast(ss)));
+    const ssv: @Vector(8, f32) = @splat(ss);
     i = 0;
     while (i < size8) : (i += 8) {
         out[i..][0..8].* = w[i..][0..8].* * ssv * x[i..][0..8].*;
     }
     while (i < size) : (i += 1) {
-        out[i] = @floatCast(w[i] * ss * x[i]);
+        out[i] = w[i] * ss * x[i];
     }
 }
 
@@ -556,7 +556,7 @@ fn createRunState(config: *c.Config, ctx_top_k: i32, allocator: std.mem.Allocato
         .kv_mul = kv_mul,
         .kv_cache_layer_size = kv_cache_layer_size,
         .kv_capacity = kv_capacity,
-        .attn_scale = 1.0 / @sqrt(@as(f64, @floatFromInt(head_size))),
+        .attn_scale = 1.0 / @sqrt(@as(f32, @floatFromInt(head_size))),
         .dim = config.dim,
         .n_heads = config.n_heads,
         .n_kv_heads = config.n_kv_heads,
@@ -565,8 +565,8 @@ fn createRunState(config: *c.Config, ctx_top_k: i32, allocator: std.mem.Allocato
         .hidden_dim = config.hidden_dim,
         .vocab_size = config.vocab_size,
         .rms_norm_eps = config.rms_norm_eps,
-        .inv_dim = 1.0 / @as(f64, @floatFromInt(config.dim)),
-        .inv_head_size = 1.0 / @as(f64, @floatFromInt(head_size)),
+        .inv_dim = 1.0 / @as(f32, @floatFromInt(config.dim)),
+        .inv_head_size = 1.0 / @as(f32, @floatFromInt(head_size)),
         .top_k_indices = top_k_indices,
         .top_k_values = top_k_values,
         .head_q_offsets = head_q_offsets,
@@ -676,7 +676,7 @@ pub fn loadModel(
     config.rms_norm_eps = blk: {
         const key = try std.fmt.allocPrint(allocator, "{s}.attention.layer_norm_rms_epsilon", .{meta_prefix});
         defer allocator.free(key);
-        break :blk gguf.number_meta.get(key) orelse 1e-6;
+        break :blk @as(f32, @floatCast(gguf.number_meta.get(key) orelse 1e-6));
     };
 
     config.ssm_d_conv = blk: {

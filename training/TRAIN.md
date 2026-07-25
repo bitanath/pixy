@@ -1,55 +1,54 @@
-# Booster LoRA Training
+# Falcon-H1 PII Masking Training
 
-Train LoRA adapters for Slack Block Kit JSX generation on Cloudflare Workers AI.
+Fine-tune Falcon-H1 (Tiny 90M or 0.5B) to detect and replace personally identifiable information (PII) in text using QLoRA + LoRA, then convert to GGUF Q5_K_M for on-device inference.
 
-## Prerequisites
+## Overview
 
-- Python 3.10+
-- RunPod (or any GPU with 80GB+ VRAM for Qwen, 24GB+ for Llama)
-- HuggingFace token with write access (for uploading)
-- Cloudflare account + wrangler (for deploying)
+| Step | What | Output |
+|------|------|--------|
+| 1 | Load `ai4privacy/pii-masking-200k` (209k examples) | raw dataset |
+| 2 | Augment with 10% identity examples (source == target) | ~230k examples |
+| 3 | QLoRA fine-tune Falcon-H1 (exclude `conv1d`/`out_proj` from LoRA, skip `out_proj` from quantization) | LoRA adapter |
+| 4 | Merge LoRA → base model | full HF model |
+| 5 | `convert_hf_to_gguf.py` → FP16 GGUF | `.gguf` f16 |
+| 6 | `quantize` → Q5_K_M | `.gguf` q5 |
 
-## Setup
+## Dataset Format
 
-```bash
-pip install transformers>=4.51.0 peft trl datasets bitsandbytes accelerate huggingface_hub
+```
+source_text: "My email is john.doe@example.com and my phone is 555-0192."
+target_text: "My email is [EMAIL] and my phone is [PHONENUMBER]."
 ```
 
-For Qwen3 specifically you need `transformers>=4.51.0`.
+For identity examples (no PII):
+```
+source_text: "The weather is nice today."
+target_text: "The weather is nice today."
+```
 
 ## Usage
 
-### 1. Prepare dataset
+Open `train_colab.ipynb` in Google Colab with a GPU runtime (T4 works for Tiny, A100 recommended for 0.5B).
 
-```bash
-python prepare_dataset.py
-```
+Set `MODEL = "tiny"` or `MODEL = "0.5b"` in Cell 1, then run all cells.
 
-Generates `dataset.jsonl` with ~280 training examples.
+## Falcon-H1 Constraints (handled)
 
-### 2. Train LoRA
+| Constraint | Implementation |
+|---|---|
+| Exclude `conv1d` + `out_proj` from LoRA | `target_modules=["in_proj","x_proj","dt_proj"]` in LoraConfig |
+| Skip `out_proj` from 4-bit quantization | `llm_int8_skip_modules=["out_proj"]` in BitsAndBytesConfig |
+| `out_proj` must stay in fp16 (used in Mamba2 CUDA kernel) | Handled by the skip above |
+| Architecture name `falcon_h1` | Supported by latest transformers + llama.cpp |
 
-**Qwen3-30B-A3B** (needs ~80GB GPU):
-```bash
-python train_qwen.py
-```
-Output: `lora_qwen/`
+## Files
 
-**Llama-3.1-8B-Instruct** (needs ~24GB GPU):
-```bash
-python train_llama.py
-```
-Output: `lora_llama/`
+- `train_colab.ipynb` — end-to-end Colab notebook
+- Trained GGUFs are downloaded directly from Colab
 
-### 3. Upload to HuggingFace
+## Expected Output Sizes
 
-```bash
-export HF_TOKEN=hf_your_token_here
-
-# Upload Qwen adapter
-python upload_to_hf.py --adapter lora_qwen --repo your-username/blocks-lora-qwen
-
-# Upload Llama adapter
-python upload_to_hf.py --adapter lora_llama --repo your-username/blocks-lora-llama
-```
-
+| Model | FP16 GGUF | Q5_K_M GGUF |
+|-------|-----------|-------------|
+| Tiny 90M | ~180 MB | ~60 MB |
+| 0.5B | ~1 GB | ~350 MB |

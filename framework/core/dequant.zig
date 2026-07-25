@@ -248,43 +248,37 @@ pub fn fp32ToFp16(f: f32) u16 {
     return sign | (@as(u16, @intCast(exp)) << 10) | mant;
 }
 
-pub fn accumByteCache(out: []f32, out_off: usize, cache: []const u8, cache_i8: []const i8, cache_off: usize, weight: f64, count: usize) void {
+pub fn accumByteCache(out: []f32, out_off: usize, cache: []const u8, cache_i8: []const i8, cache_off: usize, weight: f32, count: usize) void {
     if (weight > -1e-8 and weight < 1e-8) return;
     const nb = count >> 5;
     var bo = cache_off;
     var ob = out_off;
-    const w_f32: f32 = @floatCast(weight);
     for (0..nb) |_| {
-        const d: f32 = @floatCast(fp16ToFp32(cache[bo] | (@as(u16, cache[bo + 1]) << 8)));
-        const scale: f32 = d * w_f32;
+        const d: f32 = fp16ToFp32(cache[bo] | (@as(u16, cache[bo + 1]) << 8));
+        const scale: f32 = d * weight;
         const q_off = bo + 2;
-        const sv: @Vector(4, f32) = @splat(scale);
-        inline for (0..8) |batch| {
-            const base = batch * 4;
-            const i8_chunk: @Vector(4, i8) = cache_i8[q_off + base ..][0..4].*;
-            const f_chunk: @Vector(4, f32) = .{
-                @floatFromInt(@as(i32, @intCast(i8_chunk[0]))),
-                @floatFromInt(@as(i32, @intCast(i8_chunk[1]))),
-                @floatFromInt(@as(i32, @intCast(i8_chunk[2]))),
-                @floatFromInt(@as(i32, @intCast(i8_chunk[3]))),
-            };
-            const o_v: @Vector(4, f32) = @as(*const [4]f32, @ptrCast(&out[ob + base])).*;
-            const r: @Vector(4, f32) = o_v + f_chunk * sv;
-            @as(*[4]f32, @ptrCast(&out[ob + base])).* = r;
+        const sv: @Vector(8, f32) = @splat(scale);
+        inline for (0..4) |batch| {
+            const base = batch * 8;
+            const i8_chunk: @Vector(8, i8) = cache_i8[q_off + base ..][0..8].*;
+            const f_chunk: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(i8_chunk)));
+            const o_v: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&out[ob + base])).*;
+            const r: @Vector(8, f32) = o_v + f_chunk * sv;
+            @as(*[8]f32, @ptrCast(&out[ob + base])).* = r;
         }
         bo += c.Q8_0_BLOCK_SIZE;
         ob += 32;
     }
 }
 
-pub fn dotByteByteCache(a_q8: []const u8, a_i8: []const i8, a_off: usize, b_q8: []const u8, b_i8: []const i8, b_off: usize, count: usize) f64 {
+pub fn dotByteByteCache(a_q8: []const u8, a_i8: []const i8, a_off: usize, b_q8: []const u8, b_i8: []const i8, b_off: usize, count: usize) f32 {
     const nb = count >> 5;
-    var sum: f64 = 0.0;
+    var sum: f32 = 0.0;
     var ao = a_off;
     var bo = b_off;
     for (0..nb) |_| {
-        const da = @as(f64, fp16ToFp32(a_q8[ao] | (@as(u16, a_q8[ao + 1]) << 8)));
-        const db = @as(f64, fp16ToFp32(b_q8[bo] | (@as(u16, b_q8[bo + 1]) << 8)));
+        const da: f32 = fp16ToFp32(a_q8[ao] | (@as(u16, a_q8[ao + 1]) << 8));
+        const db: f32 = fp16ToFp32(b_q8[bo] | (@as(u16, b_q8[bo + 1]) << 8));
         const qa = ao + 2;
         const qb = bo + 2;
         var isum: i32 = 0;
@@ -297,7 +291,7 @@ pub fn dotByteByteCache(a_q8: []const u8, a_i8: []const i8, a_off: usize, b_q8: 
             isum += @as(i32, av[2]) * @as(i32, bv[2]);
             isum += @as(i32, av[3]) * @as(i32, bv[3]);
         }
-        sum += (da * db) * @as(f64, @floatFromInt(isum));
+        sum += (da * db) * @as(f32, @floatFromInt(isum));
         ao += c.Q8_0_BLOCK_SIZE;
         bo += c.Q8_0_BLOCK_SIZE;
     }
