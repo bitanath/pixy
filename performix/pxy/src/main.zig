@@ -1,7 +1,8 @@
 const std = @import("std");
-const types = @import("types.zig");
-const parser = @import("parser.zig");
+
+const types = @import("typefication.zig");
 const renderer = @import("renderer.zig");
+const parser = @import("parser.zig");
 const Io = std.Io;
 const Dir = Io.Dir;
 
@@ -25,11 +26,11 @@ pub fn main(init: std.process.Init) !void {
     defer {
         run_dir.close(io);
         if (temp_alloc) |*ta| {
-            ta.deinit();
             if (temp_dir_path) |p| {
                 const cwd = Dir.cwd();
                 Dir.deleteTree(cwd, io, p) catch {};
             }
+            ta.deinit();
         }
     }
 
@@ -57,14 +58,18 @@ fn openRunDir(
         var temp_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         const ta = temp_arena.allocator();
 
-        const basename_end = std.mem.lastIndexOfScalar(u8, path, '/') orelse return error.InvalidPath;
-        const run_id = path[basename_end + 1 ..];
-        const stem = run_id[0 .. run_id.len - 4];
-        const temp_dir = try std.fmt.allocPrint(ta, "/tmp/pxtree/{s}", .{stem});
-        Dir.createDirPath(cwd, io, temp_dir) catch {};
+        const list_result = try std.process.run(ta, io, .{
+            .argv = &[_][]const u8{ "unzip", "-Z1", path },
+        });
+        var list_lines = std.mem.splitScalar(u8, list_result.stdout, '\n');
+        const first_entry = list_lines.next() orelse return error.InvalidZip;
+        const slash = std.mem.indexOfScalar(u8, first_entry, '/') orelse return error.InvalidZip;
+        const top_dir = first_entry[0..slash];
+        const temp_dir = try std.fmt.allocPrint(ta, "/tmp/pxtree/{s}", .{top_dir});
+        Dir.createDirPath(cwd, io, "/tmp/pxtree") catch {};
 
         _ = try std.process.run(ta, io, .{
-            .argv = &[_][]const u8{ "unzip", "-o", path, "-d", temp_dir },
+            .argv = &[_][]const u8{ "unzip", "-o", path, "-d", "/tmp/pxtree" },
         });
 
         out_temp_path.* = temp_dir;

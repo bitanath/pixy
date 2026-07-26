@@ -2,7 +2,7 @@ const std = @import("std");
 const c = @import("constants.zig");
 const genny = @import("genny.zig");
 
-const model_data = @embedFile("assets/large.gguf");
+const model_data = @embedFile("assets/gigantic.gguf");
 
 pub export fn generate_conversation(prompt: [*:0]const u8, system_prompt: [*:0]const u8) ?[*:0]u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);

@@ -41,15 +41,15 @@ const fp16Table: [65536]f32 = blk: {
             if (mant == 0) {
                 fp32_bits = sign;
             } else {
-                var m = mant;
-                var e: i32 = 1 - @as(i32, fp16_exp_bias);
-                while ((m & 0x400) == 0) : ({
-                    m <<= 1;
-                    e -= 1;
-                }) {}
-                m &= ~@as(u32, 0x400);
-                const new_exp: u32 = @intCast(e + @as(i32, fp32_exp_bias));
-                const new_mant = m << 13;
+                var sub_m = mant;
+                var sub_e: i32 = 1 - @as(i32, fp16_exp_bias);
+                while ((sub_m & 0x400) == 0) {
+                    sub_m <<= 1;
+                    sub_e -= 1;
+                }
+                sub_m &= ~@as(u32, 0x400);
+                const new_exp: u32 = @intCast(sub_e + @as(i32, fp32_exp_bias));
+                const new_mant = sub_m << 13;
                 fp32_bits = sign | (new_exp << 23) | new_mant;
             }
         } else if (exp == 31) {
@@ -156,7 +156,7 @@ pub fn matmulWordLocalDirect(ctx: *c.Context, out: []f32, x: []const f32, data_p
     }
 }
 
-pub fn matmulByteLocal(out: []f32, x: []const f32, local_u8: []const u8, local_i8: []const i8, rows: usize, cols: usize, row_size: usize) void {
+pub fn matmulByteBackup(out: []f32, x: []const f32, local_u8: []const u8, local_i8: []const i8, rows: usize, cols: usize, row_size: usize) void {
     const nb = cols >> 5;
     const rows4 = rows & ~@as(usize, 3);
     const rs2 = row_size + row_size;
@@ -372,6 +372,64 @@ pub fn matmulKQuantLocalBatch(ctx: *c.Context, outs: []const []f32, xs: []const 
             }
             outs[batch][i] = @reduce(.Add, s_vec);
         }
+    }
+}
+
+pub fn matmulByteLocal(out: []f32, x: []const f32, local_u8: []const u8, local_i8: []const i8, rows: usize, cols: usize, row_size: usize) void {
+    const nb = cols >> 5;
+    const rows4 = rows & ~@as(usize, 3);
+    const rs2 = row_size + row_size;
+    const rs3 = rs2 + row_size;
+    for (0..rows4 / 4) |block| {
+        const i = block * 4;
+        var sum0: f32 = 0.0;
+        var sum1: f32 = 0.0;
+        var sum2: f32 = 0.0;
+        var sum3: f32 = 0.0;
+        var bo0: usize = i * row_size;
+        var bo1: usize = bo0 + row_size;
+        var bo2: usize = bo0 + rs2;
+        var bo3: usize = bo0 + rs3;
+        var xb: usize = 0;
+        for (0..nb) |_| {
+            const d0: f32 = fp16ToFp32(local_u8[bo0] | (@as(u16, local_u8[bo0 + 1]) << 8));
+            const d1: f32 = fp16ToFp32(local_u8[bo1] | (@as(u16, local_u8[bo1 + 1]) << 8));
+            const d2: f32 = fp16ToFp32(local_u8[bo2] | (@as(u16, local_u8[bo2 + 1]) << 8));
+            const d3: f32 = fp16ToFp32(local_u8[bo3] | (@as(u16, local_u8[bo3 + 1]) << 8));
+            const q0 = bo0 + 2;
+            const q1 = bo1 + 2;
+            const q2 = bo2 + 2;
+            const q3 = bo3 + 2;
+            var dot0_vec: @Vector(8, f32) = @splat(0.0);
+            var dot1_vec: @Vector(8, f32) = @splat(0.0);
+            var dot2_vec: @Vector(8, f32) = @splat(0.0);
+            var dot3_vec: @Vector(8, f32) = @splat(0.0);
+            inline for (0..4) |batch| {
+                const j = batch * 8;
+                const xv: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x[xb + j])).*;
+                const w0: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q0 + j ..][0..8].*))));
+                const w1: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q1 + j ..][0..8].*))));
+                const w2: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q2 + j ..][0..8].*))));
+                const w3: @Vector(8, f32) = @floatFromInt(@as(@Vector(8, i32), @intCast(@as(@Vector(8, i8), local_i8[q3 + j ..][0..8].*))));
+                dot0_vec = @mulAdd(@Vector(8, f32), xv, w0, dot0_vec);
+                dot1_vec = @mulAdd(@Vector(8, f32), xv, w1, dot1_vec);
+                dot2_vec = @mulAdd(@Vector(8, f32), xv, w2, dot2_vec);
+                dot3_vec = @mulAdd(@Vector(8, f32), xv, w3, dot3_vec);
+            }
+            sum0 += d0 * @reduce(.Add, dot0_vec);
+            sum1 += d1 * @reduce(.Add, dot1_vec);
+            sum2 += d2 * @reduce(.Add, dot2_vec);
+            sum3 += d3 * @reduce(.Add, dot3_vec);
+            bo0 += 34;
+            bo1 += 34;
+            bo2 += 34;
+            bo3 += 34;
+            xb += 32;
+        }
+        out[i] = sum0;
+        out[i + 1] = sum1;
+        out[i + 2] = sum2;
+        out[i + 3] = sum3;
     }
 }
 

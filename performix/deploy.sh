@@ -5,11 +5,11 @@ cd "$(dirname "$0")/pxy"
 
 echo "=== Building for macOS (native) ==="
 zig build
-cp zig-out/bin/pxy ../../pxy
+mv zig-out/bin/pxy ../../pxy
 
 echo "=== Building for Linux aarch64 ==="
 zig build -Dtarget=aarch64-linux-gnu
-cp zig-out/bin/pxy ../../pxy-linux
+mv zig-out/bin/pxy ../../pxy-linux
 
 echo "=== Done ==="
 ls -lh ../../pxy ../../pxy-linux
