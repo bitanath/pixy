@@ -1,6 +1,6 @@
 *.a filter=lfs diff=lfs merge=lfs -text
 *.gguf filter=lfs diff=lfs merge=lfs -text
-outputs/bin/llm filter=lfs diff=lfs merge=lfs -text
-framework/outputs/bin/llm filter=lfs diff=lfs merge=lfs -text
+outputs/bin/llm-macos filter=lfs diff=lfs merge=lfs -text
+outputs/bin/llm-linux filter=lfs diff=lfs merge=lfs -text
 framework/outputs/bin/llm-macos filter=lfs diff=lfs merge=lfs -text
 framework/outputs/bin/llm-linux filter=lfs diff=lfs merge=lfs -text
