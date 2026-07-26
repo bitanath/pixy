@@ -22,16 +22,16 @@ struct ChatMessageC {
     let content: UnsafePointer<CChar>
 }
 
-let convnetClasses: [(key: String, name: String)] = [
-    ("angry", "I feel angry so angry!"),
-    ("confused", "I am confused by this"),
-    ("cross", "No"),
-    ("flabbergasted", "What on earth is going on?!"),
-    ("happy", "I feel happy"),
-    ("heart", "I love you Pixy!"),
-    ("question", "Tell me your capabilities"),
-    ("sad", "Cheer me up, Pixy"),
-    ("tick", "Okay"),
+let convnetClasses: [(key: String, name: String, emoji: String, item: String)] = [
+    ("angry",        "I feel angry so angry!",         "😐", "Angry"),
+    ("confused",     "I am confused by this",          "😖", "Confused"),
+    ("cross",        "No, that seems wrong",           "❌", "Nope"),
+    ("flabbergasted","What on earth is going on?!",    "😲", "Flabbergasted"),
+    ("happy",        "I feel happy",                    "😊", "Happy"),
+    ("heart",        "I love you Pixy!",                "❤️", "Love"),
+    ("question",     "Tell me your capabilities",       "❓", "Question"),
+    ("sad",          "Cheer me up, Pixy",               "🙁", "Sad"),
+    ("tick",         "Okay, that is fine",              "✅", "Okay"),
 ]
 
 @_extern(c, "convnet_infer")
