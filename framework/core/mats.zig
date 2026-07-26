@@ -116,6 +116,177 @@ pub fn getVecDotQ8Func(t: c.GGML_TYPE) ?c.VecDotQ8Func {
     return null;
 }
 
+inline fn deqNibbleTile(u8_data: []const u8, off: usize, buf: []f32) void {
+    const d: f32 = @floatCast(fp16ToFp32(u8_data[off] | (@as(u16, u8_data[off + 1]) << 8)));
+    const dmin: f32 = @floatCast(fp16ToFp32(u8_data[off + 2] | (@as(u16, u8_data[off + 3]) << 8)));
+    const sc_off = off + 4;
+    const qh_off = off + 16;
+    const ql_off = off + 48;
+    var is: usize = 0;
+    var bit1: u32 = 1;
+    var bit2: u32 = 2;
+    var ql_idx: usize = 0;
+
+    const lo_mask: @Vector(16, u8) = @splat(0x0f);
+    const shift4: @Vector(16, u8) = @splat(4);
+    const vec16: @Vector(16, u8) = @splat(16);
+
+    var j: usize = 0;
+    while (j < 256) : (j += 64) {
+        var sc: usize = undefined;
+        var m_val: usize = undefined;
+        if (is < 4) {
+            sc = u8_data[sc_off + is] & 63;
+            m_val = u8_data[sc_off + is + 4] & 63;
+        } else {
+            sc = (u8_data[sc_off + is + 4] & 0x0f) | ((u8_data[sc_off + is - 4] >> 6) << 4);
+            m_val = (u8_data[sc_off + is + 4] >> 4) | ((u8_data[sc_off + is] >> 6) << 4);
+        }
+        const d1: f32 = d * @as(f32, @floatFromInt(sc));
+        const m1: f32 = dmin * @as(f32, @floatFromInt(m_val));
+        is += 1;
+
+        if (is < 4) {
+            sc = u8_data[sc_off + is] & 63;
+            m_val = u8_data[sc_off + is + 4] & 63;
+        } else {
+            sc = (u8_data[sc_off + is + 4] & 0x0f) | ((u8_data[sc_off + is - 4] >> 6) << 4);
+            m_val = (u8_data[sc_off + is + 4] >> 4) | ((u8_data[sc_off + is] >> 6) << 4);
+        }
+        const d2: f32 = d * @as(f32, @floatFromInt(sc));
+        const m2: f32 = dmin * @as(f32, @floatFromInt(m_val));
+        is += 1;
+
+        const d1v: @Vector(4, f32) = @splat(d1);
+        const m1v: @Vector(4, f32) = @splat(m1);
+        const d2v: @Vector(4, f32) = @splat(d2);
+        const m2v: @Vector(4, f32) = @splat(m2);
+
+        const bit1_u8: u8 = @intCast(bit1);
+        const bit2_u8: u8 = @intCast(bit2);
+        const bit1v: @Vector(16, u8) = @splat(bit1_u8);
+        const bit2v: @Vector(16, u8) = @splat(bit2_u8);
+        const zero8: @Vector(16, u8) = @splat(0);
+
+        const qh0: @Vector(16, u8) = u8_data[qh_off..][0..16].*;
+        const qh1: @Vector(16, u8) = u8_data[qh_off + 16..][0..16].*;
+
+        inline for (0..2) |half| {
+            const byte_off = half * 16;
+            const qh = if (half == 0) qh0 else qh1;
+            const ql: @Vector(16, u8) = u8_data[ql_off + ql_idx + byte_off..][0..16].*;
+            const ql_lo: @Vector(16, u8) = ql & lo_mask;
+            const ql_hi: @Vector(16, u8) = ql >> shift4;
+
+            const add1: @Vector(16, u8) = @select(u8, qh & bit1v != zero8, vec16, zero8);
+            const add2: @Vector(16, u8) = @select(u8, qh & bit2v != zero8, vec16, zero8);
+
+            const qv1: @Vector(16, u8) = ql_lo | add1;
+            const qv2: @Vector(16, u8) = ql_hi | add2;
+
+            inline for (0..4) |g| {
+                const gbase = g * 4;
+                const idx: @Vector(4, i32) = .{
+                    @as(i32, @intCast(gbase)), @as(i32, @intCast(gbase + 1)),
+                    @as(i32, @intCast(gbase + 2)), @as(i32, @intCast(gbase + 3)),
+                };
+
+                const c1: @Vector(4, u8) = @shuffle(u8, qv1, undefined, idx);
+                const f1: @Vector(4, f32) = .{
+                    @floatFromInt(c1[0]), @floatFromInt(c1[1]),
+                    @floatFromInt(c1[2]), @floatFromInt(c1[3]),
+                };
+                const r1: @Vector(4, f32) = f1 * d1v - m1v;
+                const o1 = j + byte_off + gbase;
+                @as(*[4]f32, @ptrCast(&buf[o1])).* = r1;
+
+                const c2: @Vector(4, u8) = @shuffle(u8, qv2, undefined, idx);
+                const f2: @Vector(4, f32) = .{
+                    @floatFromInt(c2[0]), @floatFromInt(c2[1]),
+                    @floatFromInt(c2[2]), @floatFromInt(c2[3]),
+                };
+                const r2: @Vector(4, f32) = f2 * d2v - m2v;
+                const o2 = j + 32 + byte_off + gbase;
+                @as(*[4]f32, @ptrCast(&buf[o2])).* = r2;
+            }
+        }
+        ql_idx += 32;
+        bit1 <<= 2;
+        bit2 <<= 2;
+    }
+}
+
+pub fn matmulNibbleLocal(out: []f32, x: []const f32, local_u8: []const u8, _: []const i8, rows: usize, cols: usize, row_size: usize) void {
+    const nb = cols >> 8;
+    const rows4 = rows & ~@as(usize, 3);
+
+    for (0..rows4 / 4) |block| {
+        const r = block * 4;
+        const bo0 = r * row_size;
+        const bo1 = bo0 + row_size;
+        const bo2 = bo0 + row_size * 2;
+        const bo3 = bo0 + row_size * 3;
+
+        var s0: f32 = 0;
+        var s1: f32 = 0;
+        var s2: f32 = 0;
+        var s3: f32 = 0;
+
+        for (0..nb) |t| {
+            const t_off = t * 176;
+            const col_start = t * 256;
+
+            var row0: [256]f32 = undefined;
+            var row1: [256]f32 = undefined;
+            var row2: [256]f32 = undefined;
+            var row3: [256]f32 = undefined;
+
+            deqNibbleTile(local_u8, bo0 + t_off, &row0);
+            deqNibbleTile(local_u8, bo1 + t_off, &row1);
+            deqNibbleTile(local_u8, bo2 + t_off, &row2);
+            deqNibbleTile(local_u8, bo3 + t_off, &row3);
+
+            var sv0: @Vector(8, f32) = @splat(0.0);
+            var sv1: @Vector(8, f32) = @splat(0.0);
+            var sv2: @Vector(8, f32) = @splat(0.0);
+            var sv3: @Vector(8, f32) = @splat(0.0);
+            var j: usize = 0;
+            while (j < 256) : (j += 8) {
+                const xv: @Vector(8, f32) = @as(*const [8]f32, @ptrCast(&x[col_start + j])).*;
+                sv0 = @mulAdd(@Vector(8, f32), xv, @as(*const [8]f32, @ptrCast(&row0[j])).*, sv0);
+                sv1 = @mulAdd(@Vector(8, f32), xv, @as(*const [8]f32, @ptrCast(&row1[j])).*, sv1);
+                sv2 = @mulAdd(@Vector(8, f32), xv, @as(*const [8]f32, @ptrCast(&row2[j])).*, sv2);
+                sv3 = @mulAdd(@Vector(8, f32), xv, @as(*const [8]f32, @ptrCast(&row3[j])).*, sv3);
+            }
+            s0 += @reduce(.Add, sv0);
+            s1 += @reduce(.Add, sv1);
+            s2 += @reduce(.Add, sv2);
+            s3 += @reduce(.Add, sv3);
+        }
+        out[r] = s0;
+        out[r + 1] = s1;
+        out[r + 2] = s2;
+        out[r + 3] = s3;
+    }
+
+    for (rows4..rows) |r| {
+        var s: f32 = 0;
+        const bo = r * row_size;
+        for (0..nb) |t| {
+            var row: [256]f32 = undefined;
+            deqNibbleTile(local_u8, bo + t * 176, &row);
+            var sv: @Vector(8, f32) = @splat(0.0);
+            const col_start = t * 256;
+            var j: usize = 0;
+            while (j < 256) : (j += 8) {
+                sv = @mulAdd(@Vector(8, f32), @as(*const [8]f32, @ptrCast(&x[col_start + j])).*, @as(*const [8]f32, @ptrCast(&row[j])).*, sv);
+            }
+            s += @reduce(.Add, sv);
+        }
+        out[r] = s;
+    }
+}
+
 pub fn matmulWordLocalDirect(ctx: *c.Context, out: []f32, x: []const f32, data_ptr: usize, rows: usize, cols: usize, row_size: usize) void {
     const nb = cols >> 8;
     const gguf_u8 = ctx.gguf_uint8.?;
@@ -485,6 +656,8 @@ pub fn matmulQuantized(ctx: *c.Context, out: []f32, x: []const f32, qw: c.Quanti
     //FIXME HARD PREFER deq_row_func over dot_q8_func: SIMD deqRow + SIMD f32 dot is faster
     if (qw.quant_type == .Byte) {
         matmulByteLocal(out, x, qw.local_u8.?, qw.local_i8.?, rows, cols, row_size);
+    } else if (qw.quant_type == .Nibble) {
+        matmulNibbleLocal(out, x, qw.local_u8.?, qw.local_i8.?, rows, cols, row_size);
     } else if (qw.deq_row_func) |deq_func| {
         matmulKQuantLocal(ctx, out, x, qw.local_u8.?, qw.local_i8.?, rows, cols, row_size, deq_func);
     } else if (dot_q8_func) |dq8f| {

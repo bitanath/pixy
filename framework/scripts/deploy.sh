@@ -20,6 +20,6 @@ echo "Deployed llm-watchos.a to pixy Watch App/libllm.a"
 SWIFT_TEST=$(mktemp /tmp/llm-test-XXXXXX)
 trap 'rm -f "$SWIFT_TEST"' EXIT
 
-swiftc -enable-experimental-feature Extern -o "$SWIFT_TEST" scripts/test.swift outputs/lib/llm.a 2>&1
+swiftc -enable-experimental-feature Extern -o "$SWIFT_TEST" scripts/test.swift outputs/lib/llm-macos.a 2>&1
 
 "$SWIFT_TEST"
