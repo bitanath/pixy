@@ -1,4 +1,4 @@
-🧚‍♂️ Pixy - Literally the smallest functioning LLM ever made ✨
+🧚‍♂️ Pixy - Literally the smallest functioning LLM ever
 =================================================
 
 
