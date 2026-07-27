@@ -75,7 +75,7 @@ struct CanvasDrawView: View {
                                 .font(.caption)
                         }
                         Spacer()
-                    }.frame(minWidth: 200,minHeight: 240)
+                    }.frame(minWidth: 160,minHeight: 180)
                        
                     
                 }

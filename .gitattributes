@@ -2,3 +2,5 @@
 *.gguf filter=lfs diff=lfs merge=lfs -text
 framework/outputs/bin/llm-macos filter=lfs diff=lfs merge=lfs -text
 framework/outputs/bin/llm-linux filter=lfs diff=lfs merge=lfs -text
+framework/outputs/bin/llm-macos-piimask filter=lfs diff=lfs merge=lfs -text
+framework/outputs/bin/llm-linux-piimask filter=lfs diff=lfs merge=lfs -text

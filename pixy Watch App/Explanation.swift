@@ -15,12 +15,12 @@ struct ExplanationView: View {
     }
 
     private var gridView: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             HStack{
                 Spacer()
                 Text("Draw these for Pixy")
                     .font(.caption2)
-                    .padding(.top,5)
+                    .padding(.top,2)
                 Spacer()
             }
             
@@ -28,10 +28,9 @@ struct ExplanationView: View {
                 ForEach(convnetClasses, id: \.key) { entry in
                     Button(action: { selected = entry }) {
                         VStack(spacing: 2) {
-                            Text(entry.emoji).font(.title)
+                            Text(entry.emoji).font(.title).scaleEffect(0.8)
                             Text(entry.item).font(.system(size: 5))
                         }
-                        .padding(2)
                     }
                     .buttonStyle(.plain)
                 }
@@ -51,6 +50,7 @@ struct ExplanationView: View {
                 .padding(.horizontal)
             Spacer()
             Button("Back") { selected = nil }
+            Spacer()
         }
     }
 }
