@@ -2,8 +2,8 @@
 ==========================================================
 
 ✨ Originally built for the Arm Optimization Challenge Hackathon (2026).
-The project is not vibe-coded, but all Markdown and RST for textual descriptions, 
-including this Readme, is generated from the source code using LLMs.
+The project is not vibe-coded, but all textual descriptions, 
+including this Readme, are generated from the source code using LLMs and edited by myself.
 
 
 Overview
@@ -18,7 +18,7 @@ quantized model on Apple Watch hardware.
 
 Despite the limitations of wearable hardware, Pixy achieves approximately
 1.5 tokens/sec on-device while maintaining language generation
-quality thanks to following  implemented from scratch in this repo.
+quality thanks to following  implemented from scratch in pure Zig.
 
 * Tensor operations.
 * Quantization and dequantization.
@@ -47,7 +47,7 @@ Optimizations
 
 Pixy relies heavily on Zig compile-time SIMD support for ARM NEON intrinsics.
 
-Major techniques include:
+Pragmas used include the below:
 
 * ``@Vector`` SIMD operations.
 * ``@mulAdd`` fused multiply-add.
@@ -57,11 +57,6 @@ Major techniques include:
 * Vectorized quantization/dequantization.
 * Compile-time loop unrolling.
 
-Detailed instruction-level analysis is available in:
-
-::
-
-    OPTIMIZATIONS.md
 
 Performance Tooling
 ====================
