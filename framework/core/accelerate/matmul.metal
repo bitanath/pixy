@@ -1,6 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
+//TODO: This is just a stub, I am building the shaders but the current project does not utilize them
 
 kernel void matmul_byte(
     device float*       out       [[buffer(0)]],

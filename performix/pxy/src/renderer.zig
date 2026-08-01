@@ -1,5 +1,6 @@
 const std = @import("std");
 const types = @import("typefication.zig");
+//TODO adding comments for future amnesia
 
 const R = "\x1b[0m";
 const BOLD = "\x1b[1m";
@@ -10,7 +11,7 @@ const YELLOW_BOLD = "\x1b[1;33m";
 const YELLOW = "\x1b[33m";
 
 fn starRating(pct: f64) []const u8 {
-    if (pct >= 40.0) return "*****";
+    if (pct >= 40.0) return "*****"; //TODO I mean this is subjective but whatever floats your boat
     if (pct >= 20.0) return "****";
     if (pct >= 10.0) return "***";
     if (pct >= 5.0) return "**";
@@ -76,6 +77,7 @@ pub fn renderAll(writer: anytype, data: types.ParsedData) !void {
     }
 }
 
+//FIXME from chatgpt a nicer way to create CLI tables since im allergic to packages
 fn renderHeader(writer: anytype, meta: types.RunMetadata) !void {
     const dur = parseIsoDuration(meta.start_time, meta.end_time);
     try writer.print("{s}{s}PXY - Performix Profiling Report{s}\n", .{ CYAN, BOLD, R });
