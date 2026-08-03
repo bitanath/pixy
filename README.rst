@@ -230,6 +230,36 @@ experiments such as:
 The binaries are statically linked and require no ML
 runtime installation.
 
+Setup Performix on GCP
+-------------------------
+
+::
+        # Download the ARM64 .deb package
+        wget -P $HOME https://artifacts.tools.arm.com/arm-performix/app/latest/linux/arm64/ArmPerformix-linux-arm64.deb
+        
+        # Update packages & install
+        sudo apt update
+        sudo dpkg -i $HOME/ArmPerformix-linux-arm64.deb
+        
+        # Fix any missing dependencies
+        sudo apt-get install -f
+        
+        # Add CLI to PATH
+        export PATH="/opt/Arm Performix/assets/apx:$PATH"
+        
+        # Download linux from the cloud bucket
+        gsutil cp gs://bucket/llm-linux .
+        
+        # Verify installation
+        apx version
+        
+        apx recipe run code_hotspots  --workload "echo 'Bitan Nath just made payment on credit card number 4178 9221 4503 5068' | ./llm-linux-piimask"   --use-shell --deploy-tools
+        
+        apx run export <run-id> .
+        
+        gsutil cp <run-id>.zip gs://bucket
+        
+
 Visual Touch Prompting
 ----------------------
 
