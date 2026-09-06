@@ -1,6 +1,8 @@
 🧚‍♂️ Pixy - Literally the Smallest Functioning LLM Ever
 ===========================================================
 
+![Four quadrant demo image of Pixy LLM in action](visual/demo.png)
+
 Pixy is a fully self-contained machine learning inference framework
 written entirely in Zig, designed to run quantized language models under
 extreme memory and compute constraints. Optimized using Arm Performix.
