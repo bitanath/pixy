@@ -1325,7 +1325,7 @@ fn encodeChatML(ctx: *c.Context, chat_history: []const c.ChatMessage, sys_prompt
     return tokens.toOwnedSlice();
 }
 
-pub fn generate(ctx: *c.Context, chat_history: []const c.ChatMessage, on_token: ?c.FnRender, allocator: std.mem.Allocator) ![]u8 {
+pub fn generate(ctx: *c.Context, chat_history: []const c.ChatMessage, on_token: ?c.FnRender, cancel: ?*const std.atomic.Value(bool), allocator: std.mem.Allocator) ![]u8 {
     const config = ctx.config orelse return error.NoConfig;
     const t = ctx.tokenizer orelse return error.NoTokenizer;
 
@@ -1377,6 +1377,8 @@ pub fn generate(ctx: *c.Context, chat_history: []const c.ChatMessage, on_token: 
 
     var step: usize = pos;
     while (step < effective_max_tokens) : (step += 1) {
+        // Cooperative cancellation for session streaming (null = run to end).
+        if (cancel) |flag| if (flag.load(.unordered)) break;
         const should_compute_logits = pos >= num_prompt_tokens - 1;
         if (debug) { ts(); log(.{ "[GEN] gen step", step, "/", effective_max_tokens, "pos=", pos, "token=", token }); }
         transformer(ctx, token, pos, should_compute_logits);
@@ -1540,7 +1542,7 @@ fn perfPrint(label: []const u8, time_ms: u64, rss: u64, baseline: u64) void {
 }
 
 
-pub fn conversation(ctx: *c.Context, data: c.LlamaInput, model_data: []const u8, on_progress: ?c.FnProgress, allocator: std.mem.Allocator) ![]u8 {
+pub fn conversation(ctx: *c.Context, data: c.LlamaInput, model_data: []const u8, on_progress: ?c.FnProgress, cancel: ?*const std.atomic.Value(bool), allocator: std.mem.Allocator) ![]u8 {
     if (std.mem.eql(u8, data.type, "load")) {
         ctx.perf_baseline_rss = getRSS();
         const t0_load = nowMs();
@@ -1568,7 +1570,7 @@ pub fn conversation(ctx: *c.Context, data: c.LlamaInput, model_data: []const u8,
         if (ctx.gguf_uint8 != null) {
             const t0_gen = nowMs();
             const cb = data.cb_render;
-            const result = try generate(ctx, data.chat_history orelse &.{}, cb, allocator);
+            const result = try generate(ctx, data.chat_history orelse &.{}, cb, cancel, allocator);
 
             ctx.perf_gen_rss = getRSS();
             ctx.perf_gen_time_ns = (nowMs() - t0_gen) * std.time.ns_per_ms;
