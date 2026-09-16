@@ -24,7 +24,9 @@ quality thanks to following  implemented from scratch in pure Zig.
 * watchOS integration.
 
 The inference runtime has no dependency on Python, PyTorch, TensorFlow,
-ONNX Runtime, or libtorch.
+ONNX Runtime, or libtorch. We are literally self contained within a unified Zig inference codebase. 
+No external packages whatsoever. The scope is extremely narrowed to inferencing 8-bit and 
+5_K_M/6_K_M mixed bit quantized GGUFs and pure Convolutional/MaxPool/Linear Layers for the CNN.
 
 
 Optimizations
