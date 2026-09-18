@@ -2,6 +2,10 @@ const std = @import("std");
 const c = @import("constants.zig");
 const genny = @import("genny.zig");
 
+// XXX The streaming bit is completely vibecoded for now since I've forgotten the control flow 
+// and will need to spend a day or two getting up to speed. YMMV.
+// I will make edits to this later
+
 // Session-based streaming generation. Additive API: the whole-answer
 // exports in index.zig are untouched. One live stream per process: start()
 // claims a global slot and returns null while another stream runs, so callers
