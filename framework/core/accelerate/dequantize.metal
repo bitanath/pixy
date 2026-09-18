@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-//TODO: This is just a stub, I am building the shaders but the current project does not utilize them
+//TODO: Metal backed processing for dequantize
 
 kernel void dequantize_byte(
     device const uchar* src        [[buffer(0)]],
