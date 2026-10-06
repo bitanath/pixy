@@ -3,6 +3,7 @@
 .LSOverride
 ._*
 .zig-cache
+framework/outputs/
 venv/
 .venv/
 cache/

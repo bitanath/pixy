@@ -17,14 +17,14 @@ pub export fn generate_conversation(prompt: [*:0]const u8, system_prompt: [*:0]c
         .max_tokens = 512,
         .context_size = 4096,
         .temperature = 0.3,
-    }, model_data, null, allocator) catch return null;
+    }, model_data, null, null, allocator) catch return null;
 
     const result = genny.conversation(&ctx, .{
         .type = "generate",
         .chat_history = &.{
             .{ .role = "user", .content = std.mem.sliceTo(prompt, 0) },
         },
-    }, model_data, null, allocator) catch return null;
+    }, model_data, null, null, allocator) catch return null;
 
     const out = std.heap.c_allocator.allocSentinel(u8, result.len, 0) catch return null;
     @memcpy(out, result);
